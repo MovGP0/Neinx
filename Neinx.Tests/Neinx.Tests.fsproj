@@ -15,6 +15,8 @@
     <PrivateAssets>all</PrivateAssets>
     <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
   </PackageReference>
+  <PackageReference Include="Shouldly" />
+  <PackageReference Include="Shouldly.FromAssert" />
 </ItemGroup>
 <ItemGroup>
   <ProjectReference Include="..\Neinx\Neinx.fsproj" />

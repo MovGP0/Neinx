@@ -145,8 +145,12 @@ let parseEinx (opString: string) : Expression list * Expression list =
     // Forward declaration for recursive expression parser
     let pExpr, pExprRef = createParserForwardedToRef<Expression, unit>()
 
-    // Parser for parenthesized expressions.
-    let pParens = between (pchar '(' .>> spaces) (spaces >>. pchar ')') pExpr
+    // Parser for parenthesized expressions (allows empty "()" as an Empty expression).
+    let pParens =
+        between
+            (pchar '(' .>> spaces)
+            (spaces >>. pchar ')')
+            (opt pExpr |>> Option.defaultValue Empty)
 
     // Parser for bracketed expressions (no internal arrow at this stage).
     let pBracketExpr = between (pchar '[' .>> spaces) (spaces >>. pchar ']') pExpr |>> Bracket
@@ -203,27 +207,5 @@ let parseEinx (opString: string) : Expression list * Expression list =
     // Parse all input and output expression strings into ASTs.
     let inputASTs = List.map parseExpressionString finalInputStrs
     let outputASTs = List.map parseExpressionString finalOutputStrs
-
-    // Semantic check: ensure no axis name appears more than once per expression.
-    let ensureUniqueAxes (expr:Expression) =
-        let seen = System.Collections.Generic.HashSet<string>()
-        let rec check expr =
-            match expr with
-            | Axis (AxisName name) ->
-                if seen.Contains(name) then failwithf "Duplicate axis name '%s' in expression" name
-                else seen.Add(name) |> ignore
-            | Axis (AxisNumber _) -> ()   // numeric axes are unnamed
-            | Axis AxisPlaceholder -> ()  // placeholders are unnamed
-            | Axis AxisStar -> ()         // stars are unnamed
-            | Ellipsis -> ()             // ellipsis is not a named axis
-            | Empty -> ()                // empty expressions have no named axes
-            | Composition parts
-            | Concat parts ->
-                List.iter check parts
-            | Bracket subexpr ->
-                check subexpr
-        check expr
-    inputASTs |> List.iter ensureUniqueAxes
-    outputASTs |> List.iter ensureUniqueAxes
 
     (inputASTs, outputASTs)
