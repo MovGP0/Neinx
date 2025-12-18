@@ -23,5 +23,6 @@
 </ItemGroup>
 <ItemGroup>
   <Compile Include="ParserTests.fs" />
+  <Compile Include="TorchOpsTests.fs" />
 </ItemGroup>
 </Project>
