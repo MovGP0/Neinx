@@ -11,6 +11,7 @@ type Axis =
 type Expression =
     | Axis of Axis               // a single axis (named or numeric)
     | Ellipsis                   // ellipsis "..." representing unspecified axes
+    | Empty                      // empty expression (used for scalar/implicit arguments)
     | Composition of Expression list   // composition of multiple sub-expressions (axes in sequence)
     | Concat of Expression list        // concatenation of axes (with '+')
     | Bracket of Expression      // bracket notation grouping axes for an operation
@@ -43,9 +44,8 @@ let parseEinx (opString: string) : Expression list * Expression list =
                 sb.Clear() |> ignore
             | _ ->
                 sb.Append(ch) |> ignore
-        // add final segment if any
-        let lastSeg = sb.ToString().Trim()
-        if lastSeg.Length > 0 then segments.Add(lastSeg)
+        // add final segment (even if empty, to support trailing commas like "a, ")
+        segments.Add(sb.ToString().Trim())
         List.ofSeq segments
 
     // Helper: expand a bracket expression containing '->' (and possibly commas) internally
@@ -88,23 +88,27 @@ let parseEinx (opString: string) : Expression list * Expression list =
                     else (prefix + "[" + partTrim + "]" + suffix).Trim())
         inputExprs, outputExprs
 
+    // Helper: find a top-level "->" (not inside brackets/parentheses).
+    let findTopLevelArrow (s: string) : int =
+        let mutable depthParen = 0
+        let mutable depthBracket = 0
+        let mutable arrowPos = -1
+        let mutable i = 0
+        let last = s.Length - 2
+        while arrowPos = -1 && i <= last do
+            match s[i] with
+            | '(' -> depthParen <- depthParen + 1; i <- i + 1
+            | ')' -> if depthParen > 0 then depthParen <- depthParen - 1; i <- i + 1
+            | '[' -> depthBracket <- depthBracket + 1; i <- i + 1
+            | ']' -> if depthBracket > 0 then depthBracket <- depthBracket - 1; i <- i + 1
+            | '-' when s[i + 1] = '>' && depthParen = 0 && depthBracket = 0 ->
+                arrowPos <- i
+                i <- i + 2
+            | _ -> i <- i + 1
+        arrowPos
+
     // Stage 0: Split the operation string by top-level '->' and commas.
-    let arrowPos =
-        let idx = opString.IndexOf("->")
-        if idx >= 0 then
-            // Check that this '->' is at top-level (not inside any brackets/parentheses)
-            let before = opString.Substring(0, idx)
-            let mutable depthP = 0
-            let mutable depthB = 0
-            for ch in before do
-                match ch with
-                | '(' -> depthP <- depthP + 1
-                | ')' -> if depthP > 0 then depthP <- depthP - 1
-                | '[' -> depthB <- depthB + 1
-                | ']' -> if depthB > 0 then depthB <- depthB - 1
-                | _ -> ()
-            if depthP = 0 && depthB = 0 then idx else -1
-        else -1
+    let arrowPos = findTopLevelArrow opString
     let inputStrings, outputStrings =
         if arrowPos >= 0 then
             let left = opString.Substring(0, arrowPos)
@@ -137,12 +141,8 @@ let parseEinx (opString: string) : Expression list * Expression list =
     // Forward declaration for recursive expression parser
     let pExpr, pExprRef = createParserForwardedToRef<Expression, unit>()
 
-    // Parser for parenthesized expressions (can contain composition or concatenation).
-    let pParenContent =
-        // Parse either a concatenation (with '+') or just a composition of expressions.
-        let pConcatParts = sepBy1 (pExpr .>> ws) (pchar '+' .>> ws)
-        pConcatParts |>> (fun parts -> if List.length parts > 1 then Concat parts else List.head parts)
-    let pParens = between (pchar '(' .>> spaces) (spaces >>. pchar ')') pParenContent
+    // Parser for parenthesized expressions.
+    let pParens = between (pchar '(' .>> spaces) (spaces >>. pchar ')') pExpr
 
     // Parser for bracketed expressions (no internal arrow at this stage).
     let pBracketExpr = between (pchar '[' .>> spaces) (spaces >>. pchar ']') pExpr |>> Bracket
@@ -178,13 +178,21 @@ let parseEinx (opString: string) : Expression list * Expression list =
             if rest.IsEmpty then first
             else Composition (first :: rest)
 
-    pExprRef := pComposition
+    // Parser for concatenation (with '+'), with composition binding tighter than '+'.
+    let pConcat =
+        sepBy1 (pComposition .>> ws) (ws >>. pchar '+' .>> ws)
+        |>> fun parts ->
+            if List.length parts > 1 then Concat parts else List.head parts
+
+    pExprRef := pConcat
 
     // Function to parse a single expression string into an Expression AST.
     let parseExpressionString (exprStr:string) : Expression =
-        match run (pExpr .>> eof) exprStr with
-        | Success(result, _, _) -> result
-        | Failure(msg, _, _) -> failwithf "Failed to parse expression '%s': %s" exprStr msg
+        if String.IsNullOrWhiteSpace(exprStr) then Empty
+        else
+            match run (pExpr .>> eof) exprStr with
+            | Success(result, _, _) -> result
+            | Failure(msg, _, _) -> failwithf "Failed to parse expression '%s': %s" exprStr msg
 
     // Parse all input and output expression strings into ASTs.
     let inputASTs = List.map parseExpressionString finalInputStrs
@@ -200,6 +208,7 @@ let parseEinx (opString: string) : Expression list * Expression list =
                 else seen.Add(name) |> ignore
             | Axis (AxisNumber _) -> ()   // numeric axes are unnamed
             | Ellipsis -> ()             // ellipsis is not a named axis
+            | Empty -> ()                // empty expressions have no named axes
             | Composition parts
             | Concat parts ->
                 List.iter check parts
