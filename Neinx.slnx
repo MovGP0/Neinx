@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/SolutionItems/">
+    <File Path=".gitignore" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="Neinx.Tests/Neinx.Tests.fsproj" />
+  <Project Path="Neinx/Neinx.fsproj" />
+</Solution>
