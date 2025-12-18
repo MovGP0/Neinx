@@ -1,4 +1,4 @@
-module EinxTorch
+﻿module EinxTorch
 
 open System
 open TorchSharp
@@ -302,6 +302,9 @@ let private permuteAndReshape (xExpanded: torch.Tensor) (expandedAxisIds: AxisId
             | OutputGroup ids -> ids
             | OutputConst _ -> [])
 
+    if permuteAxisIds.Length <> expandedAxisIds.Length then
+        invalidOp "Output axes must be a permutation of input axes."
+
     // Rearrange doesn't support duplicating existing axes.
     let duplicates =
         permuteAxisIds
@@ -309,22 +312,21 @@ let private permuteAndReshape (xExpanded: torch.Tensor) (expandedAxisIds: AxisId
         |> List.choose (fun (id, xs) -> if xs.Length > 1 then Some id else None)
     if duplicates.Length > 0 then
         let duplicatesText = String.Join(", ", duplicates)
-        invalidOp $"Duplicate axes in output are not supported for rearrange/repeat: {duplicatesText}"
+        invalidOp (sprintf "Duplicate axes in output are not supported for rearrange/repeat: %s" duplicatesText)
 
     let permuteIndices =
         permuteAxisIds
         |> List.map (fun id ->
             axisToIndex
             |> Map.tryFind id
-            |> Option.defaultWith (fun () -> invalidOp $"Axis '{id}' not found in input."))
+            |> Option.defaultWith (fun () -> invalidOp (sprintf "Axis '%s' not found in input." id)))
+        |> List.map int64
         |> List.toArray
 
-    let xPermuted =
-        if permuteIndices.Length = expandedAxisIds.Length then
-            xExpanded.permute(permuteIndices)
-        else
-            // Some axes may be dropped (e.g., reduce already applied); allow permuting subset with indexing via permute on full.
-            xExpanded.permute(permuteIndices)
+    if permuteIndices.Length <> xExpanded.shape.Length then
+        invalidOp "permute requires a permutation for every tensor dimension."
+
+    let xPermuted = torch.permute(xExpanded, permuteIndices)
 
     let finalShape =
         outputItems
@@ -333,13 +335,13 @@ let private permuteAndReshape (xExpanded: torch.Tensor) (expandedAxisIds: AxisId
             | OutputAxis id ->
                 axisToSize
                 |> Map.tryFind id
-                |> Option.defaultWith (fun () -> invalidOp $"Axis '{id}' missing size.")
+                |> Option.defaultWith (fun () -> invalidOp (sprintf "Axis '%s' missing size." id))
             | OutputGroup ids ->
                 ids
                 |> List.map (fun id ->
                     axisToSize
                     |> Map.tryFind id
-                    |> Option.defaultWith (fun () -> invalidOp $"Axis '{id}' missing size."))
+                    |> Option.defaultWith (fun () -> invalidOp (sprintf "Axis '%s' missing size." id)))
                 |> List.fold (fun acc x -> acc * x) 1L)
         |> List.toArray
 
@@ -398,16 +400,15 @@ let repeat (pattern: string) (x: torch.Tensor) (axisSizes: (string * int64) list
         |> List.mapi (fun i id -> id, i)
         |> Map.ofList
 
+    if existingOrder.Length <> expandedAxisIds.Length then
+        invalidOp "repeat currently requires all input axes to be present in the output."
+
     let permuteIndices =
         existingOrder
-        |> List.map (fun id -> axisToIndex[id])
+        |> List.map (fun id -> axisToIndex[id] |> int64)
         |> List.toArray
 
-    let xPermuted =
-        if permuteIndices.Length = expandedAxisIds.Length then
-            xExpanded.permute(permuteIndices)
-        else
-            xExpanded.permute(permuteIndices)
+    let xPermuted = torch.permute(xExpanded, permuteIndices)
 
     let mutable current = xPermuted
     let mutable currentAxisIds = existingOrder
@@ -423,7 +424,7 @@ let repeat (pattern: string) (x: torch.Tensor) (axisSizes: (string * int64) list
         | OutputConst c ->
             let dim = currentAxisIds.Length
             current <- current.unsqueeze(dim).expand(Array.append (current.shape |> Array.map int64) [| c |])
-            currentAxisIds <- currentAxisIds @ [ $"__c{dim}" ]
+            currentAxisIds <- currentAxisIds @ [ sprintf "__c%i" dim ]
             currentSizes <- currentSizes @ [ c ]
         | OutputAxis id when existingAxisIds.Contains id ->
             ()
@@ -431,7 +432,7 @@ let repeat (pattern: string) (x: torch.Tensor) (axisSizes: (string * int64) list
             let size =
                 axisSizesMap
                 |> Map.tryFind id
-                |> Option.defaultWith (fun () -> invalidOp $"repeat requires size for new axis '{id}'.")
+                |> Option.defaultWith (fun () -> invalidOp (sprintf "repeat requires size for new axis '%s'." id))
 
             let insertPos =
                 outputAxisIds
@@ -500,12 +501,13 @@ let reduce (pattern: string) (x: torch.Tensor) (reduction: Reduction) (keepDims:
         expandedAxisIds
         |> List.mapi (fun i id -> i, id)
         |> List.choose (fun (i, id) -> if reduceAxisNames.Contains id then Some i else None)
+        |> List.map int64
         |> List.toArray
 
     let reduced =
         match reduction with
-        | Sum -> xExpanded.sum(dim = reduceDims, keepdim = keepDims)
-        | Mean -> xExpanded.mean(dim = reduceDims, keepdim = keepDims)
+        | Sum -> xExpanded.sum(reduceDims, keepdim = keepDims)
+        | Mean -> xExpanded.mean(reduceDims, keepDims)
 
     // Remove reduced axes from expanded axis lists if keepDims = false.
     let remainingAxisIds, remainingSizes =
@@ -540,7 +542,7 @@ let einsum (pattern: string) (tensors: torch.Tensor list) : torch.Tensor =
         invalidOp "einsum expects exactly one output expression."
 
     if inputs.Length <> tensors.Length then
-        invalidOp $"einsum expects {inputs.Length} tensors but got {tensors.Length}."
+        invalidOp (sprintf "einsum expects %i tensors but got %i." inputs.Length tensors.Length)
 
     let axisNames =
         (inputs @ outputs)
@@ -567,7 +569,7 @@ let einsum (pattern: string) (tensors: torch.Tensor list) : torch.Tensor =
         notSupported "Too many distinct axes for einsum label mapping."
 
     let axisToLabel =
-        (axisNames, letters)
+        (axisNames, letters |> List.take axisNames.Length)
         ||> List.zip
         |> Map.ofList
 
@@ -587,7 +589,7 @@ let einsum (pattern: string) (tensors: torch.Tensor list) : torch.Tensor =
     let outputSubscript = exprToSubscript outputs[0]
 
     let inputSubscriptsText = String.Join(",", inputSubscripts)
-    let equation = $"{inputSubscriptsText}->{outputSubscript}"
+    let equation = sprintf "%s->%s" inputSubscriptsText outputSubscript
     torch.einsum(equation, tensors |> List.toArray)
 
 let pack (pattern: string) (x: torch.Tensor) : torch.Tensor * int64[] =
@@ -618,7 +620,7 @@ let pack (pattern: string) (x: torch.Tensor) : torch.Tensor * int64[] =
 
     let rank = x.shape.Length
     if before + after + 1 > rank then
-        invalidOp $"pack pattern requires at least {before + after + 1} dims but tensor rank is {rank}."
+        invalidOp (sprintf "pack pattern requires at least %i dims but tensor rank is %i." (before + after + 1) rank)
 
     let starDims = rank - before - after
     let packedShape =

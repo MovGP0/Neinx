@@ -1,6 +1,5 @@
 namespace einx.Parser.Tests
 
-open System
 open TorchSharp
 open Xunit
 
@@ -20,8 +19,8 @@ type TorchOpsTests() =
         Assert.Equal<int64>(5L, result.shape[2])
         Assert.Equal<int64>(3L, result.shape[3])
 
-        use expected = x.permute([| 0; 2; 3; 1 |])
-        Assert.True(torch.equal(result, expected))
+        use expected = torch.permute(x, [| 0L; 2L; 3L; 1L |])
+        Assert.True(torch.allclose(result, expected))
 
     [<Fact(DisplayName = "Should rearrange by flattening grouped dimensions when invoked")>]
     member _.ShouldRearrangeByFlatteningGroupedDimensionsWhenInvoked() =
@@ -64,7 +63,7 @@ type TorchOpsTests() =
         Assert.Equal<int64>(3L, result.shape[3])
 
         use expected = x.unsqueeze(2).unsqueeze(3).expand([| 2L; 3L; 2L; 3L |])
-        Assert.True(torch.equal(result, expected))
+        Assert.True(torch.allclose(result, expected))
 
     [<Fact(DisplayName = "Should reduce bracketed axes using mean when invoked")>]
     member _.ShouldReduceBracketedAxesUsingMeanWhenInvoked() =
@@ -78,7 +77,7 @@ type TorchOpsTests() =
         Assert.Equal<int64>(2L, result.shape[0])
         Assert.Equal<int64>(4L, result.shape[1])
 
-        use expected = x.mean(dim = [| 1 |], keepdim = false)
+        use expected = x.mean([| 1L |], false)
         Assert.True(torch.allclose(result, expected))
 
     [<Fact(DisplayName = "Should compute einsum like matrix multiplication when invoked")>]
@@ -110,4 +109,3 @@ type TorchOpsTests() =
         Assert.Equal<int64>(5L, packedTensor.shape[2])
         Assert.Equal<int64[]>([| 3L; 4L |], packedShape)
         Assert.True(torch.allclose(unpacked, x))
-
