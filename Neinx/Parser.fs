@@ -3,7 +3,7 @@
 open System
 open FParsec
 
-/// AST types representing the einx expression syntax
+/// AST types representing the einops/einx expression syntax
 type Axis =
     | AxisName of string         // named axis (e.g., 'a', 'height')
     | AxisNumber of int          // unnamed axis with fixed size (e.g., 16)
@@ -194,7 +194,7 @@ let parseEinx (opString: string) : Expression list * Expression list =
         |>> fun parts ->
             if List.length parts > 1 then Concat parts else List.head parts
 
-    pExprRef := pConcat
+    pExprRef.Value <- pConcat
 
     // Function to parse a single expression string into an Expression AST.
     let parseExpressionString (exprStr:string) : Expression =

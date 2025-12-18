@@ -9,4 +9,6 @@
   </Folder>
   <Project Path="Neinx.Tests/Neinx.Tests.fsproj" />
   <Project Path="Neinx/Neinx.fsproj" />
+  <Project Path="Neinx.TorchSharp.Tests/Neinx.TorchSharp.Tests.fsproj" />
+  <Project Path="Neinx.TorchSharp/Neinx.TorchSharp.fsproj" />
 </Solution>

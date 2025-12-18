@@ -1,5 +1,6 @@
 namespace einx.Parser.Tests
 
+open Shouldly
 open TorchSharp
 open Xunit
 
@@ -15,12 +16,13 @@ type TorchOpsTests() =
         use result = rearrange "b c h w -> b h w c" x []
 
         // Assert
-        Assert.Equal<int64>(4L, result.shape[1])
-        Assert.Equal<int64>(5L, result.shape[2])
-        Assert.Equal<int64>(3L, result.shape[3])
-
         use expected = torch.permute(x, [| 0L; 2L; 3L; 1L |])
-        Assert.True(torch.allclose(result, expected))
+        result.ShouldSatisfyAllConditions(
+            (fun () -> result.shape[1].ShouldBe(4L)),
+            (fun () -> result.shape[2].ShouldBe(5L)),
+            (fun () -> result.shape[3].ShouldBe(3L)),
+            (fun () -> torch.allclose(result, expected).ShouldBeTrue())
+        )
 
     [<Fact(DisplayName = "Should rearrange by flattening grouped dimensions when invoked")>]
     member _.ShouldRearrangeByFlatteningGroupedDimensionsWhenInvoked() =
@@ -31,9 +33,11 @@ type TorchOpsTests() =
         use result = rearrange "b c h w -> b (h w) c" x []
 
         // Assert
-        Assert.Equal<int64>(2L, result.shape[0])
-        Assert.Equal<int64>(20L, result.shape[1])
-        Assert.Equal<int64>(3L, result.shape[2])
+        result.ShouldSatisfyAllConditions(
+            (fun () -> result.shape[0].ShouldBe(2L)),
+            (fun () -> result.shape[1].ShouldBe(20L)),
+            (fun () -> result.shape[2].ShouldBe(3L))
+        )
 
     [<Fact(DisplayName = "Should rearrange by splitting grouped input dimension when invoked")>]
     member _.ShouldRearrangeBySplittingGroupedInputDimensionWhenInvoked() =
@@ -44,9 +48,11 @@ type TorchOpsTests() =
         use result = rearrange "(h w) c -> h w c" x [ "h", 4L ]
 
         // Assert
-        Assert.Equal<int64>(4L, result.shape[0])
-        Assert.Equal<int64>(5L, result.shape[1])
-        Assert.Equal<int64>(3L, result.shape[2])
+        result.ShouldSatisfyAllConditions(
+            (fun () -> result.shape[0].ShouldBe(4L)),
+            (fun () -> result.shape[1].ShouldBe(5L)),
+            (fun () -> result.shape[2].ShouldBe(3L))
+        )
 
     [<Fact(DisplayName = "Should repeat by inserting and expanding new axes when invoked")>]
     member _.ShouldRepeatByInsertingAndExpandingNewAxesWhenInvoked() =
@@ -57,13 +63,14 @@ type TorchOpsTests() =
         use result = repeat "b c -> b c h w" x [ "h", 2L; "w", 3L ]
 
         // Assert
-        Assert.Equal<int64>(2L, result.shape[0])
-        Assert.Equal<int64>(3L, result.shape[1])
-        Assert.Equal<int64>(2L, result.shape[2])
-        Assert.Equal<int64>(3L, result.shape[3])
-
         use expected = x.unsqueeze(2).unsqueeze(3).expand([| 2L; 3L; 2L; 3L |])
-        Assert.True(torch.allclose(result, expected))
+        result.ShouldSatisfyAllConditions(
+            (fun () -> result.shape[0].ShouldBe(2L)),
+            (fun () -> result.shape[1].ShouldBe(3L)),
+            (fun () -> result.shape[2].ShouldBe(2L)),
+            (fun () -> result.shape[3].ShouldBe(3L)),
+            (fun () -> torch.allclose(result, expected).ShouldBeTrue())
+        )
 
     [<Fact(DisplayName = "Should reduce bracketed axes using mean when invoked")>]
     member _.ShouldReduceBracketedAxesUsingMeanWhenInvoked() =
@@ -74,11 +81,12 @@ type TorchOpsTests() =
         use result = reduce "b [c] h -> b h" x Reduction.Mean false []
 
         // Assert
-        Assert.Equal<int64>(2L, result.shape[0])
-        Assert.Equal<int64>(4L, result.shape[1])
-
         use expected = x.mean([| 1L |], false)
-        Assert.True(torch.allclose(result, expected))
+        result.ShouldSatisfyAllConditions(
+            (fun () -> result.shape[0].ShouldBe(2L)),
+            (fun () -> result.shape[1].ShouldBe(4L)),
+            (fun () -> torch.allclose(result, expected).ShouldBeTrue())
+        )
 
     [<Fact(DisplayName = "Should compute einsum like matrix multiplication when invoked")>]
     member _.ShouldComputeEinsumMatmulWhenInvoked() =
@@ -91,7 +99,7 @@ type TorchOpsTests() =
 
         // Assert
         use expected = torch.matmul(x, y)
-        Assert.True(torch.allclose(result, expected))
+        torch.allclose(result, expected).ShouldBeTrue()
 
     [<Fact(DisplayName = "Should pack and unpack with star axis when invoked")>]
     member _.ShouldPackAndUnpackWithStarAxisWhenInvoked() =
@@ -104,8 +112,10 @@ type TorchOpsTests() =
         use unpacked = unpack "b * c" packedTensor packedShape
 
         // Assert
-        Assert.Equal<int64>(2L, packedTensor.shape[0])
-        Assert.Equal<int64>(12L, packedTensor.shape[1])
-        Assert.Equal<int64>(5L, packedTensor.shape[2])
-        Assert.Equal<int64[]>([| 3L; 4L |], packedShape)
-        Assert.True(torch.allclose(unpacked, x))
+        packedTensor.ShouldSatisfyAllConditions(
+            (fun () -> packedTensor.shape[0].ShouldBe(2L)),
+            (fun () -> packedTensor.shape[1].ShouldBe(12L)),
+            (fun () -> packedTensor.shape[2].ShouldBe(5L)),
+            (fun () -> packedShape.ShouldBe([| 3L; 4L |])),
+            (fun () -> torch.allclose(unpacked, x).ShouldBeTrue())
+        )

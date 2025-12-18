@@ -6,8 +6,6 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="FParsec" />
-        <PackageReference Include="TorchSharp" />
-        <PackageReference Include="TorchSharp-cpu" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.CodeAnalysis.Analyzers">
             <PrivateAssets>all</PrivateAssets>

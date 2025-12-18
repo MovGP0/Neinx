@@ -7,6 +7,5 @@
     </PropertyGroup>
     <ItemGroup>
       <Compile Include="Parser.fs" />
-      <Compile Include="EinxTorch.fs" />
     </ItemGroup>
 </Project>
