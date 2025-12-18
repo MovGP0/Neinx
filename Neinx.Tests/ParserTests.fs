@@ -17,6 +17,30 @@ type ParseEinxTests() =
         let expected = ([ Axis(AxisNumber 16) ], [])
         Assert.Equal(expected, result)
 
+    [<Fact(DisplayName = "Should parse an axis name containing underscores when invoked")>]
+    member _.ShouldParseAxisNameWithUnderscoreWhenInvoked() =
+        let result = parseEinx "c_in c_out"
+        let expected = ([ Composition [ Axis(AxisName "c_in"); Axis(AxisName "c_out") ] ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse placeholder axis when invoked")>]
+    member _.ShouldParsePlaceholderAxisWhenInvoked() =
+        let result = parseEinx "_"
+        let expected = ([ Axis AxisPlaceholder ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should allow repeated placeholder axes when invoked")>]
+    member _.ShouldAllowRepeatedPlaceholderAxesWhenInvoked() =
+        let result = parseEinx "_ _"
+        let expected = ([ Composition [ Axis AxisPlaceholder; Axis AxisPlaceholder ] ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse packed star axis when invoked")>]
+    member _.ShouldParseStarAxisWhenInvoked() =
+        let result = parseEinx "*"
+        let expected = ([ Axis AxisStar ], [])
+        Assert.Equal(expected, result)
+
     [<Fact(DisplayName = "Should parse ellipsis when invoked")>]
     member _.ShouldParseEllipsisWhenInvoked() =
         let result = parseEinx "..."
@@ -41,6 +65,34 @@ type ParseEinxTests() =
         let expected =
             ( [ Composition [ Axis(AxisName "a"); Axis(AxisName "b") ] ],
               [ Composition [ Axis(AxisName "b"); Axis(AxisName "a") ] ] )
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse an einops-style rearrange pattern when invoked")>]
+    member _.ShouldParseEinopsStyleRearrangeWhenInvoked() =
+        let result = parseEinx "b c h w -> b h w c"
+        let expected =
+            ( [ Composition [ Axis(AxisName "b"); Axis(AxisName "c"); Axis(AxisName "h"); Axis(AxisName "w") ] ],
+              [ Composition [ Axis(AxisName "b"); Axis(AxisName "h"); Axis(AxisName "w"); Axis(AxisName "c") ] ] )
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse grouped axes using parentheses when invoked")>]
+    member _.ShouldParseGroupedAxesWhenInvoked() =
+        let result = parseEinx "b c h w -> b (h w) c"
+        let expected =
+            ( [ Composition [ Axis(AxisName "b"); Axis(AxisName "c"); Axis(AxisName "h"); Axis(AxisName "w") ] ],
+              [ Composition [ Axis(AxisName "b"); Composition [ Axis(AxisName "h"); Axis(AxisName "w") ]; Axis(AxisName "c") ] ] )
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse decomposing a grouped axis when invoked")>]
+    member _.ShouldParseDecomposingGroupedAxisWhenInvoked() =
+        let result = parseEinx "(b1 b2) h w c -> b1 b2 h w c"
+        let expected =
+            ( [ Composition
+                    [ Composition [ Axis(AxisName "b1"); Axis(AxisName "b2") ]
+                      Axis(AxisName "h")
+                      Axis(AxisName "w")
+                      Axis(AxisName "c") ] ],
+              [ Composition [ Axis(AxisName "b1"); Axis(AxisName "b2"); Axis(AxisName "h"); Axis(AxisName "w"); Axis(AxisName "c") ] ] )
         Assert.Equal(expected, result)
 
     [<Fact(DisplayName = "Should parse bracketed expressions with ellipsis inside when invoked")>]
@@ -82,6 +134,24 @@ type ParseEinxTests() =
     member _.ShouldParseConcatWhenInvoked() =
         let result = parseEinx "a + b"
         let expected = ([ Concat [ Axis(AxisName "a"); Axis(AxisName "b") ] ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse packed star axis in an einops-style pack pattern when invoked")>]
+    member _.ShouldParsePackPatternWithStarWhenInvoked() =
+        let result = parseEinx "h w *"
+        let expected = ([ Composition [ Axis(AxisName "h"); Axis(AxisName "w"); Axis AxisStar ] ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse pack pattern with star prefix when invoked")>]
+    member _.ShouldParsePackPatternWithStarPrefixWhenInvoked() =
+        let result = parseEinx "* h w c"
+        let expected = ([ Composition [ Axis AxisStar; Axis(AxisName "h"); Axis(AxisName "w"); Axis(AxisName "c") ] ], [])
+        Assert.Equal(expected, result)
+
+    [<Fact(DisplayName = "Should parse bracketed placeholder axis when invoked")>]
+    member _.ShouldParseBracketedPlaceholderAxisWhenInvoked() =
+        let result = parseEinx "[_]"
+        let expected = ([ Bracket (Axis AxisPlaceholder) ], [])
         Assert.Equal(expected, result)
 
     [<Fact(DisplayName = "Should expand bracket arrow into output when invoked")>]

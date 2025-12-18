@@ -7,6 +7,8 @@ open FParsec
 type Axis =
     | AxisName of string         // named axis (e.g., 'a', 'height')
     | AxisNumber of int          // unnamed axis with fixed size (e.g., 16)
+    | AxisPlaceholder            // "_" placeholder axis (unnamed)
+    | AxisStar                   // "*" packed axis (unnamed)
 
 type Expression =
     | Axis of Axis               // a single axis (named or numeric)
@@ -133,11 +135,13 @@ let parseEinx (opString: string) : Expression list * Expression list =
     let ws = spaces  // whitespace parser
     // Primitive lexers for axis name and number
     let pAxisName =
-        many1Satisfy2L isLetter (fun c -> isLetter c || isDigit c) "axis name"
+        many1Satisfy2L isLetter (fun c -> isLetter c || isDigit c || c = '_') "axis name"
         |>> AxisName
     let pAxisNumber =
         many1SatisfyL isDigit "axis size"
         |>> (fun digits -> AxisNumber (int digits))
+    let pAxisPlaceholder = pchar '_' >>% AxisPlaceholder
+    let pAxisStar = pchar '*' >>% AxisStar
     // Forward declaration for recursive expression parser
     let pExpr, pExprRef = createParserForwardedToRef<Expression, unit>()
 
@@ -167,13 +171,15 @@ let parseEinx (opString: string) : Expression list * Expression list =
             pBracketExpr
             pParens
             pEllipsis
+            pAxisStar |>> Axis
+            pAxisPlaceholder |>> Axis
             pAxisNumber |>> Axis
             pAxisName  |>> Axis
         ]
 
     // Parser for a sequence of atoms (composition), separated by whitespace.
     let pComposition =
-        pAtom .>>. many (many1 (pchar ' ' <|> pchar '\t') >>. pAtom)
+        pAtom .>>. many (attempt (many1 (pchar ' ' <|> pchar '\t') >>. pAtom))
         |>> fun (first, rest) ->
             if rest.IsEmpty then first
             else Composition (first :: rest)
@@ -207,6 +213,8 @@ let parseEinx (opString: string) : Expression list * Expression list =
                 if seen.Contains(name) then failwithf "Duplicate axis name '%s' in expression" name
                 else seen.Add(name) |> ignore
             | Axis (AxisNumber _) -> ()   // numeric axes are unnamed
+            | Axis AxisPlaceholder -> ()  // placeholders are unnamed
+            | Axis AxisStar -> ()         // stars are unnamed
             | Ellipsis -> ()             // ellipsis is not a named axis
             | Empty -> ()                // empty expressions have no named axes
             | Composition parts
