@@ -11,8 +11,6 @@
     <PackageReference Include="MathNet.Numerics" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="EinxMathNet.Types.fs" />
-    <Compile Include="EinxMathNet.Pattern.fs" />
     <Compile Include="EinxMathNet.fs" />
   </ItemGroup>
 </Project>

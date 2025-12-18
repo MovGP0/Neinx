@@ -4,7 +4,6 @@ open Shouldly
 open Xunit
 
 open EinxMathNet
-open EinxMathNetTypes
 
 [<Sealed>]
 type MathNetOpsTests() =

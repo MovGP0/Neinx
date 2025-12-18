@@ -57,7 +57,7 @@ All functions are in the `EinxTorch` module and operate on `torch.Tensor`:
 
 ### MathNet backend (`Neinx.MathNet`)
 
-All functions are in the `EinxMathNet` module and operate on `EinxMathNetTypes.Tensor`:
+All functions are in the `EinxMathNet` module and operate on `EinxMathNet.Tensor`:
 
 - `rearrange : string -> Tensor -> (string * int64) list -> Tensor`
 - `repeat    : string -> Tensor -> (string * int64) list -> Tensor`
@@ -66,7 +66,7 @@ All functions are in the `EinxMathNet` module and operate on `EinxMathNetTypes.T
 - `pack      : string -> Tensor -> Tensor * int64[]`
 - `unpack    : string -> Tensor -> int64[] -> Tensor`
 
-`EinxMathNetTypes` also provides basic tensor utilities like `tensor`, `zeros`, `ones`, `reshape`, `permute`, `ofMatrix`, `toMatrix`.
+`EinxMathNet` also provides basic tensor utilities like `tensor`, `zeros`, `ones`, `reshape`, `permute`, `ofMatrix`, `toMatrix`.
 
 ## Usage examples
 
@@ -160,7 +160,6 @@ var mm = einsum("x y, y z -> x z", ListModule.OfSeq(new[] { a, b }));
 
 ```fsharp
 open EinxMathNet
-open EinxMathNetTypes
 
 let x = tensor [| 2L; 3L; 4L |] (Array.init (2 * 3 * 4) (fun i -> float i))
 
@@ -181,12 +180,11 @@ using System;
 using System.Linq;
 using Microsoft.FSharp.Collections;
 using static EinxMathNet;
-using static EinxMathNetTypes;
 
 static FSharpList<Tuple<string, long>> AxisSizes(params (string name, long size)[] xs) =>
     ListModule.OfSeq(xs.Select(x => Tuple.Create(x.name, x.size)));
 
-var x = EinxMathNetTypes.tensor(
+var x = tensor(
     new long[] { 2, 3, 4 },
     Enumerable.Range(0, 2 * 3 * 4).Select(i => (double)i).ToArray());
 
