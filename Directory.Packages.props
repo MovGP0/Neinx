@@ -19,5 +19,6 @@
         <PackageVersion Include="Shouldly" Version="4.3.0" />
         <PackageVersion Include="Shouldly.FromAssert" Version="1.1.37" />
         <PackageVersion Include="FSharp.Core" Version="10.0.101" />
+        <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
     </ItemGroup>
 </Project>
